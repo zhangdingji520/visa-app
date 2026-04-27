@@ -84,15 +84,11 @@
       font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
       color: var(--text2); display: block; margin-bottom: 4px; letter-spacing: 0.5px;
     }
-    .form-row input, .form-row textarea {
+    .form-row textarea {
       width: 100%; padding: 10px 12px; border: 1px solid var(--borderStrong);
       border-radius: 8px; font-size: 0.85rem; background: #fafbfc;
+      resize: vertical; min-height: 100px;
     }
-    .form-row textarea { resize: vertical; min-height: 60px; }
-    .flex-row { display: flex; gap: 8px; }
-    .flex-row > * { flex: 1; }
-
-    /* 国家选择网格 — 三列 */
     .country-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -209,47 +205,21 @@
     <div class="input-area no-print">
       <h3>🧳 行程信息</h3>
       <div class="form-row">
-        <label>🌍 旅行国家（可多选，一行三个）</label>
+        <label>🌍 选择想去的国家（可多选，一行三个）</label>
         <div class="country-grid" id="countryList"></div>
       </div>
       <div class="form-row">
-        <label>✈️ 往返航班</label>
-        <div class="flex-row">
-          <input type="text" id="outFlight" placeholder="去程航班号" value="CA939">
-          <input type="text" id="returnFlight" placeholder="回程航班号" value="CA940">
-        </div>
-      </div>
-      <div class="form-row">
-        <label>🛫 出发城市 & 机场</label>
-        <input type="text" id="departureAirport" value="成都天府国际机场 (TFU)" placeholder="出发城市/机场">
-      </div>
-      <div class="form-row">
-        <label>🛬 抵达城市 & 机场</label>
-        <input type="text" id="arrivalAirport" value="罗马菲乌米奇诺机场 (FCO)" placeholder="抵达城市/机场">
-      </div>
-      <div class="form-row flex-row">
-        <div><label>📅 出发日期</label><input type="date" id="startDate" value="2026-04-24"></div>
-        <div><label>📅 返回日期</label><input type="date" id="endDate" value="2026-05-02"></div>
-      </div>
-      <div class="form-row">
-        <label>🏨 主要酒店 (逗号分隔)</label>
-        <input type="text" id="hotels" value="Hotel Nazionale, Hotel Brunelleschi" placeholder="如: Hotel Roma, Hotel Firenze">
-      </div>
-      <div class="form-row">
-        <label>🚌 偏好交通方式</label>
-        <input type="text" id="transportPref" value="火车、地铁、步行" placeholder="如: 火车、公交、步行">
-      </div>
-      <div class="form-row">
-        <label>💬 额外要求 (可选)</label>
-        <textarea id="extraNotes" placeholder="例如：想去五渔村，每天不要太累...">包含五渔村、比萨斜塔，张弛有度</textarea>
+        <label>💬 告诉我你的旅行计划</label>
+        <textarea id="travelPlan" placeholder="例如：
+我想在2026年4月24日到5月2日去欧洲旅游，从成都出发，飞罗马。回程从巴黎飞回成都。航班号是CA939和CA940。想住舒适的酒店，主要坐火车和飞机。想去五渔村、比萨斜塔，行程不要太赶。">我想在2026年4月24日到5月2日去欧洲旅游，从成都出发，飞罗马。回程从巴黎飞回成都。航班号是CA939和CA940。想住舒适的酒店，主要坐火车和飞机。想去五渔村、比萨斜塔，行程不要太赶。</textarea>
       </div>
       <button class="btn btn-primary" style="width:100%;margin-top:6px;" onclick="generateItinerary()">
-        🤖 AI 智能生成行程单
+        🤖 AI 帮你规划行程
       </button>
       <button class="btn btn-outline" style="width:100%;margin-top:8px;" id="langToggleBtn2" onclick="toggleLanguage()">
         🌐 转换为英文版
       </button>
-      <p style="font-size:0.7rem;color:var(--muted);margin-top:8px;">* AI 连接智谱 GLM-4 模型，智能规划每日行程</p>
+      <p style="font-size:0.7rem;color:var(--muted);margin-top:8px;">* AI 会根据你选的国家和描述，自动生成完整行程表格</p>
     </div>
 
     <div class="preview-area">
@@ -257,7 +227,7 @@
         <div class="paper" id="itineraryPaper">
           <div style="text-align:center;padding:60px 20px;color:#a0aec0;">
             <div style="font-size:3rem;">📋</div>
-            <p>填写左侧信息后，点击"AI生成行程"</p>
+            <p>选择国家、填写旅行计划后，点击“AI帮你规划行程”</p>
           </div>
         </div>
       </div>
@@ -265,12 +235,11 @@
   </div>
 
   <div class="loading-overlay" id="loadingOverlay">
-    <span>🤖 AI正在规划行程，请稍后...</span>
+    <span>🤖 AI正在帮你规划行程，请稍后...</span>
   </div>
 
   <script>
   (function() {
-    // 后端 API 地址
     const API_URL = 'https://visa-app-five.vercel.app/api/generate';
 
     // 申根国家列表（已去除列支敦士登）
@@ -291,7 +260,6 @@
     let itineraryResult = null;
     let currentLanguage = 'zh';
 
-    // 工具函数
     function showLoading(show) { document.getElementById('loadingOverlay').classList.toggle('active', show); }
     function esc(s) {
       if (!s) return '';
@@ -307,18 +275,16 @@
         div.className = 'country-item';
         div.dataset.country = country;
         div.innerHTML = `<span class="check-box"></span>${country}`;
-        div.addEventListener('click', () => {
-          // 多选切换
-          div.classList.toggle('active');
-        });
+        div.addEventListener('click', () => div.classList.toggle('active'));
         container.appendChild(div);
       });
-      // 默认选中意大利
-      const italyItem = container.querySelector('[data-country="意大利"]');
-      if (italyItem) italyItem.classList.add('active');
+      // 默认选中意大利、法国、瑞士
+      ['意大利', '法国', '瑞士'].forEach(c => {
+        const item = container.querySelector(`[data-country="${c}"]`);
+        if (item) item.classList.add('active');
+      });
     }
 
-    // 获取已选中的国家列表
     function getSelectedCountries() {
       const actives = document.querySelectorAll('.country-item.active');
       return Array.from(actives).map(el => el.dataset.country);
@@ -332,28 +298,24 @@
         return;
       }
 
+      const travelPlan = document.getElementById('travelPlan').value.trim();
+      if (!travelPlan) {
+        showToast('❌ 请填写旅行计划描述');
+        return;
+      }
+
+      // 拼接发送给AI的消息
+      const message = `我想去以下国家旅游：${selectedCountries.join('、')}。\n我的旅行计划是：${travelPlan}\n\n请帮我规划一份签证行程单，包含每天的序号、日期、城市、旅游景点、住宿酒店、交通方式。要求行程合理，张弛有度。`;
+
       showLoading(true);
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 35000);
+      const timeoutId = setTimeout(() => controller.abort(), 90000);
 
       try {
-        const params = {
-          country: selectedCountries.join('、'),  // 多个国家用顿号分隔
-          startDate: document.getElementById('startDate').value,
-          endDate: document.getElementById('endDate').value,
-          hotels: document.getElementById('hotels').value,
-          transportPref: document.getElementById('transportPref').value,
-          outFlight: document.getElementById('outFlight').value,
-          returnFlight: document.getElementById('returnFlight').value,
-          departureAirport: document.getElementById('departureAirport').value,
-          arrivalAirport: document.getElementById('arrivalAirport').value,
-          extraNotes: document.getElementById('extraNotes').value
-        };
-
         const response = await fetch(API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(params),
+          body: JSON.stringify({ message }),
           signal: controller.signal
         });
 
@@ -379,7 +341,7 @@
       } catch (e) {
         clearTimeout(timeoutId);
         if (e.name === 'AbortError') {
-          showToast('❌ 请求超时，AI 还在思考，请稍后重试');
+          showToast('❌ AI 响应超时，可尝试减少国家数量或稍后重试');
         } else {
           showToast('❌ ' + e.message);
         }
@@ -482,19 +444,16 @@
     }
 
     function resetAll() {
-      document.getElementById('startDate').value = '2026-04-24';
-      document.getElementById('endDate').value = '2026-05-02';
-      document.getElementById('hotels').value = 'Hotel Nazionale, Hotel Brunelleschi';
-      document.getElementById('transportPref').value = '火车、地铁、步行';
-      document.getElementById('extraNotes').value = '包含五渔村、比萨斜塔，张弛有度';
+      document.getElementById('travelPlan').value = '我想在2026年4月24日到5月2日去欧洲旅游，从成都出发，飞罗马。回程从巴黎飞回成都。航班号是CA939和CA940。想住舒适的酒店，主要坐火车和飞机。想去五渔村、比萨斜塔，行程不要太赶。';
       itineraryResult = null;
       currentLanguage = 'zh';
       updateLangButtons();
-      // 重置国家选择：取消所有，只选中意大利
       document.querySelectorAll('.country-item').forEach(el => el.classList.remove('active'));
-      const italy = document.querySelector('.country-item[data-country="意大利"]');
-      if (italy) italy.classList.add('active');
-      document.getElementById('itineraryPaper').innerHTML = `<div style="text-align:center;padding:60px;"><div style="font-size:3rem;">📋</div><p>填写左侧信息后，点击"AI生成行程"</p></div>`;
+      ['意大利', '法国', '瑞士'].forEach(c => {
+        const item = document.querySelector(`.country-item[data-country="${c}"]`);
+        if (item) item.classList.add('active');
+      });
+      document.getElementById('itineraryPaper').innerHTML = `<div style="text-align:center;padding:60px;"><div style="font-size:3rem;">📋</div><p>选择国家、填写旅行计划后，点击“AI帮你规划行程”</p></div>`;
       showToast('🔄 已重置');
     }
 
@@ -508,14 +467,12 @@
       setTimeout(() => t.remove(), 2500);
     }
 
-    // 注册全局函数
     window.generateItinerary = generateItinerary;
     window.toggleLanguage = toggleLanguage;
     window.exportPDF = exportPDF;
     window.exportWord = exportWord;
     window.resetAll = resetAll;
 
-    // 启动时构建国家列表并恢复数据
     buildCountryList();
     loadFromLocal();
   })();
