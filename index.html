@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -208,7 +207,7 @@
         <div class="paper" id="itineraryPaper">
           <div style="text-align:center;padding:60px 20px;color:#a0aec0;">
             <div style="font-size:3rem;">📋</div>
-            <p>填写左侧信息后，点击“AI生成行程”</p>
+            <p>填写左侧信息后，点击"AI生成行程"</p>
           </div>
         </div>
       </div>
@@ -221,22 +220,19 @@
 
   <script>
   (function() {
-    // 后端 API 地址 - 使用相对路径，部署到 Vercel 后会自动指向当前域名下的 /api/generate
-    const API_URL = '/api/generate';
+    // ★★★ 后端 API 地址（指向你的 Vercel 部署）★★★
+    const API_URL = 'https://visa-app-five.vercel.app/api/generate';
 
-    // 交通方式翻译映射
+    // 交通方式翻译映射（中文 ↔ 英文）
     const transportZhEn = {
       '飞机':'flight','火车':'train','地铁':'metro','公交':'bus',
       '步行':'walk','出租车':'taxi','水上巴士':'water bus'
     };
-    const transportEnZh = {
-      'flight':'飞机','train':'火车','metro':'地铁','bus':'公交',
-      'walk':'步行','taxi':'出租车','water bus':'水上巴士'
-    };
 
-    let itineraryResult = null;
-    let currentLanguage = 'zh';
+    let itineraryResult = null;   // 保存 AI 返回的行程 JSON
+    let currentLanguage = 'zh';   // 当前语言：zh（中文）或 en（英文）
 
+    // ---------- 工具函数 ----------
     function showLoading(show) {
       document.getElementById('loadingOverlay').classList.toggle('active', show);
     }
@@ -248,20 +244,21 @@
       return d.innerHTML;
     }
 
+    // ---------- 调用后端 AI 生成行程 ----------
     async function generateItinerary() {
       showLoading(true);
       try {
         const params = {
-          country: document.getElementById('countrySelect').value,
-          startDate: document.getElementById('startDate').value,
-          endDate: document.getElementById('endDate').value,
-          hotels: document.getElementById('hotels').value,
-          transportPref: document.getElementById('transportPref').value,
-          outFlight: document.getElementById('outFlight').value,
-          returnFlight: document.getElementById('returnFlight').value,
+          country:        document.getElementById('countrySelect').value,
+          startDate:      document.getElementById('startDate').value,
+          endDate:        document.getElementById('endDate').value,
+          hotels:         document.getElementById('hotels').value,
+          transportPref:  document.getElementById('transportPref').value,
+          outFlight:      document.getElementById('outFlight').value,
+          returnFlight:   document.getElementById('returnFlight').value,
           departureAirport: document.getElementById('departureAirport').value,
-          arrivalAirport: document.getElementById('arrivalAirport').value,
-          extraNotes: document.getElementById('extraNotes').value
+          arrivalAirport:   document.getElementById('arrivalAirport').value,
+          extraNotes:     document.getElementById('extraNotes').value
         };
 
         const response = await fetch(API_URL, {
@@ -294,6 +291,7 @@
       showLoading(false);
     }
 
+    // ---------- 渲染行程表格 ----------
     function renderItinerary(data, lang) {
       const paper = document.getElementById('itineraryPaper');
       if (!data || !data.days) return;
@@ -315,14 +313,14 @@
         </tr></thead><tbody>`;
 
       data.days.forEach((day, idx) => {
-        // 城市间交通行
+        // 城市间交通提示行
         if (day.transitNote && day.transitNote.trim()) {
           html += `<tr class="transit-note">
             <td colspan="6">🚄 ${esc(day.transitNote)}</td>
           </tr>`;
         }
 
-        // 景点列
+        // 景点列内容
         let spotsHtml = '';
         if (day.arrivalInfo && day.arrivalInfo.trim()) {
           spotsHtml += `<div style="margin-bottom:6px;">${esc(day.arrivalInfo)}</div>`;
@@ -362,6 +360,7 @@
       paper.innerHTML = html;
     }
 
+    // ---------- 语言切换 ----------
     function toggleLanguage() {
       if (!itineraryResult) { showToast('请先生成行程'); return; }
       currentLanguage = currentLanguage === 'zh' ? 'en' : 'zh';
@@ -377,6 +376,7 @@
       if (btn2) btn2.textContent = text;
     }
 
+    // ---------- 本地存储 ----------
     function saveToLocal() {
       try { localStorage.setItem('ai_itinerary_bilingual', JSON.stringify(itineraryResult)); } catch(e) {}
     }
@@ -393,8 +393,9 @@
       } catch(e) {}
     }
 
+    // ---------- 导出 ----------
     function exportPDF() {
-      alert('请使用浏览器打印功能 (Ctrl+P 或分享→打印)，选择“另存为PDF”，边距设为最小。');
+      alert('请使用浏览器打印功能 (Ctrl+P 或分享→打印)，选择"另存为PDF"，边距设为最小。');
       window.print();
     }
 
@@ -410,6 +411,7 @@
       showToast('📝 Word文档已下载');
     }
 
+    // ---------- 重置 ----------
     function resetAll() {
       document.getElementById('countrySelect').value = '意大利';
       document.getElementById('startDate').value = '2026-04-24';
@@ -420,10 +422,11 @@
       itineraryResult = null;
       currentLanguage = 'zh';
       updateLangButtons();
-      document.getElementById('itineraryPaper').innerHTML = `<div style="text-align:center;padding:60px;"><div style="font-size:3rem;">📋</div><p>填写左侧信息后，点击“AI生成行程”</p></div>`;
+      document.getElementById('itineraryPaper').innerHTML = `<div style="text-align:center;padding:60px;"><div style="font-size:3rem;">📋</div><p>填写左侧信息后，点击"AI生成行程"</p></div>`;
       showToast('🔄 已重置');
     }
 
+    // ---------- Toast 提示 ----------
     function showToast(msg) {
       const t = document.createElement('div');
       t.textContent = msg;
@@ -441,12 +444,14 @@
       setTimeout(() => t.remove(), 2500);
     }
 
+    // ---------- 暴露到全局 ----------
     window.generateItinerary = generateItinerary;
     window.toggleLanguage = toggleLanguage;
     window.exportPDF = exportPDF;
     window.exportWord = exportWord;
     window.resetAll = resetAll;
 
+    // ---------- 页面加载时恢复上次的行程 ----------
     loadFromLocal();
   })();
   </script>
