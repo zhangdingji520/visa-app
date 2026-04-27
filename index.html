@@ -84,13 +84,69 @@
       font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
       color: var(--text2); display: block; margin-bottom: 4px; letter-spacing: 0.5px;
     }
-    .form-row input, .form-row select, .form-row textarea {
+    .form-row input, .form-row textarea {
       width: 100%; padding: 10px 12px; border: 1px solid var(--borderStrong);
       border-radius: 8px; font-size: 0.85rem; background: #fafbfc;
     }
     .form-row textarea { resize: vertical; min-height: 60px; }
     .flex-row { display: flex; gap: 8px; }
     .flex-row > * { flex: 1; }
+
+    /* 国家选择网格 */
+    .country-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+    }
+    @media (max-width:400px) {
+      .country-grid { grid-template-columns: 1fr; }
+    }
+    .country-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border: 1px solid var(--borderStrong);
+      border-radius: 8px;
+      font-size: 0.82rem;
+      background: #fff;
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .country-item:hover {
+      border-color: var(--accent);
+      background: var(--accentLight);
+    }
+    .country-item.active {
+      border-color: var(--accent);
+      background: var(--accentLight);
+      font-weight: 600;
+      box-shadow: 0 0 0 2px rgba(43,108,176,0.2);
+    }
+    .country-item .check-box {
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--borderStrong);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: var(--accent);
+      transition: 0.1s;
+      flex-shrink: 0;
+    }
+    .country-item.active .check-box {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+    }
+    .country-item.active .check-box::after {
+      content: "✓";
+      font-weight: bold;
+    }
+
     .paper-wrap { width:100%; max-width:950px; }
     .paper {
       background:white; box-shadow: 0 8px 24px rgba(0,0,0,0.12); border-radius:4px;
@@ -152,14 +208,8 @@
     <div class="input-area no-print">
       <h3>🧳 行程信息</h3>
       <div class="form-row">
-        <label>🌍 旅行国家/地区</label>
-        <select id="countrySelect">
-          <option value="意大利">意大利 (深度游)</option>
-          <option value="法国">法国</option>
-          <option value="西班牙">西班牙</option>
-          <option value="德国">德国</option>
-          <option value="瑞士">瑞士</option>
-        </select>
+        <label>🌍 旅行国家（点击方框选中）</label>
+        <div class="country-grid" id="countryList"></div>
       </div>
       <div class="form-row">
         <label>✈️ 往返航班</label>
@@ -222,45 +272,82 @@
     // 后端 API 地址
     const API_URL = 'https://visa-app-five.vercel.app/api/generate';
 
-    // 交通方式翻译映射（中文 ↔ 英文）
+    // 申根国家列表
+    const schengenCountries = [
+      '奥地利', '比利时', '捷克', '丹麦', '爱沙尼亚', '芬兰',
+      '法国', '德国', '希腊', '匈牙利', '冰岛', '意大利',
+      '拉脱维亚', '列支敦士登', '立陶宛', '卢森堡', '马耳他',
+      '荷兰', '挪威', '波兰', '葡萄牙', '斯洛伐克', '斯洛文尼亚',
+      '西班牙', '瑞典', '瑞士', '克罗地亚'
+    ];
+
+    // 交通翻译
     const transportZhEn = {
       '飞机':'flight','火车':'train','地铁':'metro','公交':'bus',
       '步行':'walk','出租车':'taxi','水上巴士':'water bus'
     };
 
-    let itineraryResult = null;   // AI 返回的行程数据
-    let currentLanguage = 'zh';   // 当前语言：zh 或 en
+    let itineraryResult = null;
+    let currentLanguage = 'zh';
 
-    // ---------- 工具函数 ----------
-    function showLoading(show) {
-      document.getElementById('loadingOverlay').classList.toggle('active', show);
-    }
-
+    // 工具函数
+    function showLoading(show) { document.getElementById('loadingOverlay').classList.toggle('active', show); }
     function esc(s) {
       if (!s) return '';
-      const d = document.createElement('div');
-      d.textContent = s;
-      return d.innerHTML;
+      const d = document.createElement('div'); d.textContent = s; return d.innerHTML;
     }
 
-    // ---------- 调用后端 AI 生成行程（含超时） ----------
+    // 初始化国家选择列表
+    function buildCountryList() {
+      const container = document.getElementById('countryList');
+      container.innerHTML = '';
+      schengenCountries.forEach(country => {
+        const div = document.createElement('div');
+        div.className = 'country-item';
+        div.dataset.country = country;
+        div.innerHTML = `<span class="check-box"></span>${country}`;
+        div.addEventListener('click', () => {
+          // 单选逻辑：移除所有active，为当前项添加active
+          document.querySelectorAll('.country-item').forEach(el => el.classList.remove('active'));
+          div.classList.add('active');
+        });
+        container.appendChild(div);
+      });
+      // 默认选中意大利
+      const italyItem = container.querySelector('[data-country="意大利"]');
+      if (italyItem) italyItem.classList.add('active');
+    }
+
+    // 获取当前选中的国家
+    function getSelectedCountry() {
+      const active = document.querySelector('.country-item.active');
+      return active ? active.dataset.country : null;
+    }
+
+    // 生成行程
     async function generateItinerary() {
+      const selectedCountry = getSelectedCountry();
+      if (!selectedCountry) {
+        showToast('❌ 请先选择一个国家');
+        return;
+      }
+
       showLoading(true);
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 35000); // 35秒超时
+      const timeoutId = setTimeout(() => controller.abort(), 35000);
 
       try {
         const params = {
-          country:        document.getElementById('countrySelect').value,
-          startDate:      document.getElementById('startDate').value,
-          endDate:        document.getElementById('endDate').value,
-          hotels:         document.getElementById('hotels').value,
-          transportPref:  document.getElementById('transportPref').value,
-          outFlight:      document.getElementById('outFlight').value,
-          returnFlight:   document.getElementById('returnFlight').value,
+          country: selectedCountry,
+          startDate: document.getElementById('startDate').value,
+          endDate: document.getElementById('endDate').value,
+          hotels: document.getElementById('hotels').value,
+          transportPref: document.getElementById('transportPref').value,
+          outFlight: document.getElementById('outFlight').value,
+          returnFlight: document.getElementById('returnFlight').value,
           departureAirport: document.getElementById('departureAirport').value,
-          arrivalAirport:   document.getElementById('arrivalAirport').value,
-          extraNotes:     document.getElementById('extraNotes').value
+          arrivalAirport: document.getElementById('arrivalAirport').value,
+          extraNotes: document.getElementById('extraNotes').value
         };
 
         const response = await fetch(API_URL, {
@@ -296,12 +383,12 @@
         } else {
           showToast('❌ ' + e.message);
         }
-        console.error('生成失败：', e);
+        console.error(e);
       }
       showLoading(false);
     }
 
-    // ---------- 渲染行程表格 ----------
+    // 渲染表格
     function renderItinerary(data, lang) {
       const paper = document.getElementById('itineraryPaper');
       if (!data || !data.days) return;
@@ -310,9 +397,7 @@
       let html = `<div class="paper-header">
         <div class="title">${zh ? '🗺️ 旅行行程单 · Travel Itinerary' : '🗺️ Travel Itinerary'}</div>
         <div class="sub">${zh ? 'AI 智能规划 · 申根签证专用' : 'AI Powered · Schengen Visa'}</div>
-      </div>`;
-
-      html += `<table class="itinerary-table">
+      </div><table class="itinerary-table">
         <thead><tr>
           <th class="col-seq">${zh ? '序号' : 'No.'}</th>
           <th class="col-date">${zh ? '日期' : 'Date'}</th>
@@ -324,50 +409,36 @@
 
       data.days.forEach((day, idx) => {
         if (day.transitNote && day.transitNote.trim()) {
-          html += `<tr class="transit-note">
-            <td colspan="6">🚄 ${esc(day.transitNote)}</td>
-          </tr>`;
+          html += `<tr class="transit-note"><td colspan="6">🚄 ${esc(day.transitNote)}</td></tr>`;
         }
 
         let spotsHtml = '';
-        if (day.arrivalInfo && day.arrivalInfo.trim()) {
-          spotsHtml += `<div style="margin-bottom:6px;">${esc(day.arrivalInfo)}</div>`;
-        }
+        if (day.arrivalInfo && day.arrivalInfo.trim()) spotsHtml += `<div style="margin-bottom:6px;">${esc(day.arrivalInfo)}</div>`;
         (day.attractions || []).forEach((a, i) => {
-          if (zh) {
-            spotsHtml += `${i + 1}. ${esc(a.name)} (${esc(a.nameEn || '')}) <span class="mark">${esc(a.time || '')}</span><br>`;
-          } else {
-            spotsHtml += `${i + 1}. ${esc(a.nameEn || a.name)} <span class="mark">${esc(a.time || '')}</span><br>`;
-          }
+          if (zh) spotsHtml += `${i+1}. ${esc(a.name)} (${esc(a.nameEn||'')}) <span class="mark">${esc(a.time||'')}</span><br>`;
+          else spotsHtml += `${i+1}. ${esc(a.nameEn||a.name)} <span class="mark">${esc(a.time||'')}</span><br>`;
         });
-        if (day.departureInfo && day.departureInfo.trim()) {
-          spotsHtml += `<div style="margin-top:6px;">${esc(day.departureInfo)}</div>`;
-        }
+        if (day.departureInfo && day.departureInfo.trim()) spotsHtml += `<div style="margin-top:6px;">${esc(day.departureInfo)}</div>`;
 
         let transportStr = '';
         if (day.transport && Array.isArray(day.transport)) {
-          transportStr = day.transport.map(t => {
-            if (zh) return t;
-            return transportZhEn[t] || t;
-          }).join(', ');
+          transportStr = day.transport.map(t => zh ? t : (transportZhEn[t]||t)).join(', ');
         }
 
         html += `<tr>
-          <td class="col-seq">${day.day || idx + 1}</td>
-          <td class="col-date">${esc(day.date || '')}</td>
-          <td class="col-city"><strong>${esc(day.city || '')}</strong></td>
+          <td class="col-seq">${day.day || idx+1}</td>
+          <td class="col-date">${esc(day.date||'')}</td>
+          <td class="col-city"><strong>${esc(day.city||'')}</strong></td>
           <td class="col-spot">${spotsHtml}</td>
-          <td class="col-acc"><strong>${esc(day.hotel || '')}</strong></td>
+          <td class="col-acc"><strong>${esc(day.hotel||'')}</strong></td>
           <td class="col-trans">${transportStr}</td>
         </tr>`;
       });
 
-      html += `</tbody></table>`;
-      html += `<div class="paper-footer">${zh ? 'AI 生成 · 仅供参考 · 请核对后递签' : 'AI generated · for reference only'}</div>`;
+      html += `</tbody></table><div class="paper-footer">${zh ? 'AI 生成 · 仅供参考 · 请核对后递签' : 'AI generated · for reference only'}</div>`;
       paper.innerHTML = html;
     }
 
-    // ---------- 语言切换 ----------
     function toggleLanguage() {
       if (!itineraryResult) { showToast('请先生成行程'); return; }
       currentLanguage = currentLanguage === 'zh' ? 'en' : 'zh';
@@ -377,12 +448,9 @@
 
     function updateLangButtons() {
       const text = currentLanguage === 'zh' ? '🌐 转换为英文版' : '🌐 转换为中文版';
-      document.querySelectorAll('#langToggleBtn, #langToggleBtn2').forEach(btn => {
-        btn.textContent = text;
-      });
+      document.querySelectorAll('#langToggleBtn, #langToggleBtn2').forEach(b => b.textContent = text);
     }
 
-    // ---------- 本地存储 ----------
     function saveToLocal() {
       try { localStorage.setItem('ai_itinerary_bilingual', JSON.stringify(itineraryResult)); } catch(e) {}
     }
@@ -399,27 +467,21 @@
       } catch(e) {}
     }
 
-    // ---------- 导出 ----------
     function exportPDF() {
-      alert('请使用浏览器打印功能 (Ctrl+P 或分享→打印)，选择"另存为PDF"，边距设为最小。');
+      alert('请使用浏览器打印功能，选择"另存为PDF"，边距设为最小。');
       window.print();
     }
 
     function exportWord() {
       if (!itineraryResult) { showToast('请先生成行程'); return; }
       const paperHTML = document.getElementById('itineraryPaper').outerHTML;
-      const full = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>签证行程单</title><style>body{font-family:sans-serif;max-width:950px;margin:0 auto;padding:20px;} table{border-collapse:collapse;width:100%;border:1px solid #000;} th,td{border:1px solid #333;padding:8px;vertical-align:top;} th{background:#f5f5f5;} .mark{background:#fff3cd;padding:2px 6px;}</style></head><body>${paperHTML}</body></html>`;
+      const full = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>签证行程单</title><style>body{font-family:sans-serif;max-width:950px;margin:0 auto;padding:20px;} table{border-collapse:collapse;width:100%;border:1px solid #000;} th,td{border:1px solid #333;padding:8px;} .mark{background:#fff3cd;}</style></head><body>${paperHTML}</body></html>`;
       const blob = new Blob([full], { type: 'application/msword' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = '签证行程单.doc';
-      a.click();
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = '签证行程单.doc'; a.click();
       showToast('📝 Word文档已下载');
     }
 
-    // ---------- 重置 ----------
     function resetAll() {
-      document.getElementById('countrySelect').value = '意大利';
       document.getElementById('startDate').value = '2026-04-24';
       document.getElementById('endDate').value = '2026-05-02';
       document.getElementById('hotels').value = 'Hotel Nazionale, Hotel Brunelleschi';
@@ -428,36 +490,33 @@
       itineraryResult = null;
       currentLanguage = 'zh';
       updateLangButtons();
+      // 重置国家选择：选中意大利
+      document.querySelectorAll('.country-item').forEach(el => el.classList.remove('active'));
+      const italy = document.querySelector('.country-item[data-country="意大利"]');
+      if (italy) italy.classList.add('active');
       document.getElementById('itineraryPaper').innerHTML = `<div style="text-align:center;padding:60px;"><div style="font-size:3rem;">📋</div><p>填写左侧信息后，点击"AI生成行程"</p></div>`;
       showToast('🔄 已重置');
     }
 
-    // ---------- Toast 提示 ----------
     function showToast(msg) {
       const t = document.createElement('div');
       t.textContent = msg;
-      t.style.position = 'fixed';
-      t.style.bottom = '24px';
-      t.style.left = '50%';
-      t.style.transform = 'translateX(-50%)';
-      t.style.background = '#1a202c';
-      t.style.color = 'white';
-      t.style.padding = '10px 24px';
-      t.style.borderRadius = '30px';
-      t.style.zIndex = '1000';
-      t.style.fontSize = '0.85rem';
+      t.style.position='fixed'; t.style.bottom='24px'; t.style.left='50%';
+      t.style.transform='translateX(-50%)'; t.style.background='#1a202c'; t.style.color='white';
+      t.style.padding='10px 24px'; t.style.borderRadius='30px'; t.style.zIndex='1000'; t.style.fontSize='0.85rem';
       document.body.appendChild(t);
       setTimeout(() => t.remove(), 2500);
     }
 
-    // ---------- 暴露全局函数 ----------
+    // 注册全局函数
     window.generateItinerary = generateItinerary;
     window.toggleLanguage = toggleLanguage;
     window.exportPDF = exportPDF;
     window.exportWord = exportWord;
     window.resetAll = resetAll;
 
-    // 页面加载时恢复上次保存的行程
+    // 启动时构建国家列表并恢复数据
+    buildCountryList();
     loadFromLocal();
   })();
   </script>
