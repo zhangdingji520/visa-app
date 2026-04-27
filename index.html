@@ -124,7 +124,6 @@
       z-index:999; justify-content:center; align-items:center; font-size:1.2rem; color:var(--accent);
     }
     .loading-overlay.active { display:flex; }
-    .error-msg { color:var(--danger); font-size:0.8rem; margin-top:6px; }
     @media print {
       body { background:white; }
       .app-header, .input-area, .no-print, .loading-overlay { display:none!important; }
@@ -220,7 +219,7 @@
 
   <script>
   (function() {
-    // ★★★ 后端 API 地址（指向你的 Vercel 部署）★★★
+    // 后端 API 地址
     const API_URL = 'https://visa-app-five.vercel.app/api/generate';
 
     // 交通方式翻译映射（中文 ↔ 英文）
@@ -229,8 +228,8 @@
       '步行':'walk','出租车':'taxi','水上巴士':'water bus'
     };
 
-    let itineraryResult = null;   // 保存 AI 返回的行程 JSON
-    let currentLanguage = 'zh';   // 当前语言：zh（中文）或 en（英文）
+    let itineraryResult = null;   // AI 返回的行程数据
+    let currentLanguage = 'zh';   // 当前语言：zh 或 en
 
     // ---------- 工具函数 ----------
     function showLoading(show) {
@@ -244,9 +243,12 @@
       return d.innerHTML;
     }
 
-    // ---------- 调用后端 AI 生成行程 ----------
+    // ---------- 调用后端 AI 生成行程（含超时） ----------
     async function generateItinerary() {
       showLoading(true);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 35000); // 35秒超时
+
       try {
         const params = {
           country:        document.getElementById('countrySelect').value,
@@ -264,17 +266,20 @@
         const response = await fetch(API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(params)
+          body: JSON.stringify(params),
+          signal: controller.signal
         });
+
+        clearTimeout(timeoutId);
 
         if (!response.ok) {
           const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.error || '服务器请求失败 (状态码: ' + response.status + ')');
+          throw new Error(errData.error || `请求失败 (状态码: ${response.status})`);
         }
 
         const result = await response.json();
         if (!result.days || !Array.isArray(result.days)) {
-          throw new Error('AI 返回的数据格式不正确，请稍后重试');
+          throw new Error('AI 返回的数据格式不正确');
         }
 
         itineraryResult = result;
@@ -285,7 +290,12 @@
         showToast('✅ AI行程已生成');
 
       } catch (e) {
-        showToast('❌ ' + e.message);
+        clearTimeout(timeoutId);
+        if (e.name === 'AbortError') {
+          showToast('❌ 请求超时，AI 还在思考，请稍后重试');
+        } else {
+          showToast('❌ ' + e.message);
+        }
         console.error('生成失败：', e);
       }
       showLoading(false);
@@ -313,14 +323,12 @@
         </tr></thead><tbody>`;
 
       data.days.forEach((day, idx) => {
-        // 城市间交通提示行
         if (day.transitNote && day.transitNote.trim()) {
           html += `<tr class="transit-note">
             <td colspan="6">🚄 ${esc(day.transitNote)}</td>
           </tr>`;
         }
 
-        // 景点列内容
         let spotsHtml = '';
         if (day.arrivalInfo && day.arrivalInfo.trim()) {
           spotsHtml += `<div style="margin-bottom:6px;">${esc(day.arrivalInfo)}</div>`;
@@ -336,7 +344,6 @@
           spotsHtml += `<div style="margin-top:6px;">${esc(day.departureInfo)}</div>`;
         }
 
-        // 交通列
         let transportStr = '';
         if (day.transport && Array.isArray(day.transport)) {
           transportStr = day.transport.map(t => {
@@ -370,10 +377,9 @@
 
     function updateLangButtons() {
       const text = currentLanguage === 'zh' ? '🌐 转换为英文版' : '🌐 转换为中文版';
-      const btn1 = document.getElementById('langToggleBtn');
-      const btn2 = document.getElementById('langToggleBtn2');
-      if (btn1) btn1.textContent = text;
-      if (btn2) btn2.textContent = text;
+      document.querySelectorAll('#langToggleBtn, #langToggleBtn2').forEach(btn => {
+        btn.textContent = text;
+      });
     }
 
     // ---------- 本地存储 ----------
@@ -444,14 +450,14 @@
       setTimeout(() => t.remove(), 2500);
     }
 
-    // ---------- 暴露到全局 ----------
+    // ---------- 暴露全局函数 ----------
     window.generateItinerary = generateItinerary;
     window.toggleLanguage = toggleLanguage;
     window.exportPDF = exportPDF;
     window.exportWord = exportWord;
     window.resetAll = resetAll;
 
-    // ---------- 页面加载时恢复上次的行程 ----------
+    // 页面加载时恢复上次保存的行程
     loadFromLocal();
   })();
   </script>
