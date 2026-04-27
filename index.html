@@ -1,1 +1,454 @@
 
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
+  <title>AI签证行程单生成器</title>
+  <style>
+    :root {
+      --bg: #f0f4f8;
+      --paper: #ffffff;
+      --text: #1a202c;
+      --text2: #4a5568;
+      --muted: #718096;
+      --border: #e2e8f0;
+      --borderStrong: #cbd5e0;
+      --accent: #2b6cb0;
+      --accentLight: #ebf4ff;
+      --accentDark: #1a4a7a;
+      --danger: #c53030;
+      --success: #2f855a;
+      --shadow: 0 4px 12px rgba(0,0,0,0.08);
+      --radius: 12px;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+    .app-header {
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .logo { display:flex; align-items:center; gap:10px; }
+    .logo-icon { width:36px; height:36px; background:var(--accent); border-radius:8px; color:#fff; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:700; }
+    .logo h1 { font-size:1.2rem; font-weight:700; }
+    .logo span { font-size:0.75rem; color:var(--muted); display:block; }
+    .header-actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .btn {
+      display:inline-flex; align-items:center; gap:6px; padding:9px 16px; border-radius:24px;
+      font-size:0.85rem; font-weight:500; cursor:pointer; border:1px solid transparent;
+      background:white; transition:0.2s; white-space:nowrap;
+    }
+    .btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .btn-primary:hover { background:var(--accentDark); }
+    .btn-outline { border-color:var(--borderStrong); color:var(--text2); }
+    .btn-outline:hover { background:var(--accentLight); border-color:var(--accent); }
+    .btn-success { background:var(--success); color:#fff; }
+    .btn-success:hover { background:#1e5a3a; }
+    .btn-sm { padding:6px 14px; font-size:0.8rem; }
+    .main-layout {
+      display: flex; max-width:1400px; margin:0 auto; padding:20px 16px; gap:20px;
+      flex-wrap: wrap;
+    }
+    .input-area {
+      flex: 0 0 380px; background:#fff; border-radius:var(--radius); box-shadow:var(--shadow);
+      padding:24px; border:1px solid var(--border); height: fit-content;
+      position: sticky; top: 85px;
+    }
+    .preview-area {
+      flex: 1; min-width: 0;
+      display: flex; flex-direction:column; align-items:center; gap:16px;
+    }
+    @media (max-width:900px) {
+      .main-layout { flex-direction:column; }
+      .input-area { flex:auto; width:100%; position:static; }
+      .preview-area { width:100%; }
+    }
+    .input-area h3 { font-size: 1.2rem; margin-bottom: 20px; display: flex; align-items:center; gap:8px; }
+    .form-row { margin-bottom: 16px; }
+    .form-row label {
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+      color: var(--text2); display: block; margin-bottom: 4px; letter-spacing: 0.5px;
+    }
+    .form-row input, .form-row select, .form-row textarea {
+      width: 100%; padding: 10px 12px; border: 1px solid var(--borderStrong);
+      border-radius: 8px; font-size: 0.85rem; background: #fafbfc;
+    }
+    .form-row textarea { resize: vertical; min-height: 60px; }
+    .flex-row { display: flex; gap: 8px; }
+    .flex-row > * { flex: 1; }
+    .paper-wrap { width:100%; max-width:950px; }
+    .paper {
+      background:white; box-shadow: 0 8px 24px rgba(0,0,0,0.12); border-radius:4px;
+      padding:32px 28px; border:1px solid #e8e8e8;
+    }
+    .paper-header { text-align:center; margin-bottom:24px; padding-bottom:16px; border-bottom:2px solid #f0f0f0; }
+    .paper-header .title { font-size:1.4rem; font-weight:700; letter-spacing:1px; }
+    .paper-header .sub { font-size:0.8rem; color:var(--muted); }
+    .itinerary-table {
+      width:100%; border-collapse: collapse; font-size: 0.78rem; table-layout: fixed;
+      border: 1px solid #000;
+    }
+    .itinerary-table th {
+      background: #f5f5f5; font-weight:700; font-size:0.72rem;
+      border: 1px solid #333; padding: 8px 6px; text-align: center; color: #1a202c;
+    }
+    .itinerary-table td {
+      border: 1px solid #555; padding: 8px 6px; vertical-align: top; word-break: break-word;
+    }
+    .col-seq { width:8%; text-align:center; }
+    .col-date { width:12%; text-align:center; }
+    .col-city { width:10%; text-align:center; }
+    .col-spot { width:38%; }
+    .col-acc { width:17%; }
+    .col-trans { width:15%; }
+    .transit-note { background:#f9f9f9; text-align:center; }
+    .mark { background:#fff3cd; padding:2px 6px; border-radius:4px; font-size:0.7rem; display:inline-block; margin:1px 0; }
+    .paper-footer { text-align:center; color:#cbd5e0; font-size:0.65rem; margin-top:20px; }
+    .loading-overlay {
+      display:none; position:fixed; top:0;left:0;right:0;bottom:0; background:rgba(255,255,255,0.85);
+      z-index:999; justify-content:center; align-items:center; font-size:1.2rem; color:var(--accent);
+    }
+    .loading-overlay.active { display:flex; }
+    .error-msg { color:var(--danger); font-size:0.8rem; margin-top:6px; }
+    @media print {
+      body { background:white; }
+      .app-header, .input-area, .no-print, .loading-overlay { display:none!important; }
+      .main-layout { display:block; padding:0; }
+      .paper { box-shadow:none; border:none; padding:10px 0; }
+      .itinerary-table { font-size:0.7rem; }
+    }
+  </style>
+</head>
+<body>
+  <header class="app-header no-print">
+    <div class="logo">
+      <div class="logo-icon">🤖</div>
+      <div><h1>AI签证行程单</h1><span>中英双语 · 申根适配</span></div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-outline btn-sm" onclick="resetAll()">🔄 清空</button>
+      <button class="btn btn-primary btn-sm" onclick="generateItinerary()">✨ AI生成行程</button>
+      <button class="btn btn-outline btn-sm" id="langToggleBtn" onclick="toggleLanguage()">🌐 转换为英文版</button>
+      <button class="btn btn-success btn-sm" onclick="exportPDF()">📄 导出PDF</button>
+      <button class="btn btn-outline btn-sm" onclick="exportWord()">📝 导出Word</button>
+    </div>
+  </header>
+
+  <div class="main-layout">
+    <div class="input-area no-print">
+      <h3>🧳 行程信息</h3>
+      <div class="form-row">
+        <label>🌍 旅行国家/地区</label>
+        <select id="countrySelect">
+          <option value="意大利">意大利 (深度游)</option>
+          <option value="法国">法国</option>
+          <option value="西班牙">西班牙</option>
+          <option value="德国">德国</option>
+          <option value="瑞士">瑞士</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>✈️ 往返航班</label>
+        <div class="flex-row">
+          <input type="text" id="outFlight" placeholder="去程航班号" value="CA939">
+          <input type="text" id="returnFlight" placeholder="回程航班号" value="CA940">
+        </div>
+      </div>
+      <div class="form-row">
+        <label>🛫 出发城市 & 机场</label>
+        <input type="text" id="departureAirport" value="成都天府国际机场 (TFU)" placeholder="出发城市/机场">
+      </div>
+      <div class="form-row">
+        <label>🛬 抵达城市 & 机场</label>
+        <input type="text" id="arrivalAirport" value="罗马菲乌米奇诺机场 (FCO)" placeholder="抵达城市/机场">
+      </div>
+      <div class="form-row flex-row">
+        <div><label>📅 出发日期</label><input type="date" id="startDate" value="2026-04-24"></div>
+        <div><label>📅 返回日期</label><input type="date" id="endDate" value="2026-05-02"></div>
+      </div>
+      <div class="form-row">
+        <label>🏨 主要酒店 (逗号分隔)</label>
+        <input type="text" id="hotels" value="Hotel Nazionale, Hotel Brunelleschi" placeholder="如: Hotel Roma, Hotel Firenze">
+      </div>
+      <div class="form-row">
+        <label>🚌 偏好交通方式</label>
+        <input type="text" id="transportPref" value="火车、地铁、步行" placeholder="如: 火车、公交、步行">
+      </div>
+      <div class="form-row">
+        <label>💬 额外要求 (可选)</label>
+        <textarea id="extraNotes" placeholder="例如：想去五渔村，每天不要太累...">包含五渔村、比萨斜塔，张弛有度</textarea>
+      </div>
+      <button class="btn btn-primary" style="width:100%;margin-top:6px;" onclick="generateItinerary()">
+        🤖 AI 智能生成行程单
+      </button>
+      <button class="btn btn-outline" style="width:100%;margin-top:8px;" id="langToggleBtn2" onclick="toggleLanguage()">
+        🌐 转换为英文版
+      </button>
+      <p style="font-size:0.7rem;color:var(--muted);margin-top:8px;">* AI 连接智谱 GLM-4 模型，智能规划每日行程</p>
+    </div>
+
+    <div class="preview-area">
+      <div class="paper-wrap">
+        <div class="paper" id="itineraryPaper">
+          <div style="text-align:center;padding:60px 20px;color:#a0aec0;">
+            <div style="font-size:3rem;">📋</div>
+            <p>填写左侧信息后，点击“AI生成行程”</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="loading-overlay" id="loadingOverlay">
+    <span>🤖 AI正在规划行程，请稍后...</span>
+  </div>
+
+  <script>
+  (function() {
+    // 后端 API 地址 - 使用相对路径，部署到 Vercel 后会自动指向当前域名下的 /api/generate
+    const API_URL = '/api/generate';
+
+    // 交通方式翻译映射
+    const transportZhEn = {
+      '飞机':'flight','火车':'train','地铁':'metro','公交':'bus',
+      '步行':'walk','出租车':'taxi','水上巴士':'water bus'
+    };
+    const transportEnZh = {
+      'flight':'飞机','train':'火车','metro':'地铁','bus':'公交',
+      'walk':'步行','taxi':'出租车','water bus':'水上巴士'
+    };
+
+    let itineraryResult = null;
+    let currentLanguage = 'zh';
+
+    function showLoading(show) {
+      document.getElementById('loadingOverlay').classList.toggle('active', show);
+    }
+
+    function esc(s) {
+      if (!s) return '';
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    async function generateItinerary() {
+      showLoading(true);
+      try {
+        const params = {
+          country: document.getElementById('countrySelect').value,
+          startDate: document.getElementById('startDate').value,
+          endDate: document.getElementById('endDate').value,
+          hotels: document.getElementById('hotels').value,
+          transportPref: document.getElementById('transportPref').value,
+          outFlight: document.getElementById('outFlight').value,
+          returnFlight: document.getElementById('returnFlight').value,
+          departureAirport: document.getElementById('departureAirport').value,
+          arrivalAirport: document.getElementById('arrivalAirport').value,
+          extraNotes: document.getElementById('extraNotes').value
+        };
+
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(params)
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || '服务器请求失败 (状态码: ' + response.status + ')');
+        }
+
+        const result = await response.json();
+        if (!result.days || !Array.isArray(result.days)) {
+          throw new Error('AI 返回的数据格式不正确，请稍后重试');
+        }
+
+        itineraryResult = result;
+        currentLanguage = 'zh';
+        updateLangButtons();
+        renderItinerary(itineraryResult, currentLanguage);
+        saveToLocal();
+        showToast('✅ AI行程已生成');
+
+      } catch (e) {
+        showToast('❌ ' + e.message);
+        console.error('生成失败：', e);
+      }
+      showLoading(false);
+    }
+
+    function renderItinerary(data, lang) {
+      const paper = document.getElementById('itineraryPaper');
+      if (!data || !data.days) return;
+      const zh = (lang === 'zh');
+
+      let html = `<div class="paper-header">
+        <div class="title">${zh ? '🗺️ 旅行行程单 · Travel Itinerary' : '🗺️ Travel Itinerary'}</div>
+        <div class="sub">${zh ? 'AI 智能规划 · 申根签证专用' : 'AI Powered · Schengen Visa'}</div>
+      </div>`;
+
+      html += `<table class="itinerary-table">
+        <thead><tr>
+          <th class="col-seq">${zh ? '序号' : 'No.'}</th>
+          <th class="col-date">${zh ? '日期' : 'Date'}</th>
+          <th class="col-city">${zh ? '城市' : 'City'}</th>
+          <th class="col-spot">${zh ? '旅游景点' : 'Scenic Spots'}</th>
+          <th class="col-acc">${zh ? '住宿' : 'Accommodation'}</th>
+          <th class="col-trans">${zh ? '交通' : 'Transport'}</th>
+        </tr></thead><tbody>`;
+
+      data.days.forEach((day, idx) => {
+        // 城市间交通行
+        if (day.transitNote && day.transitNote.trim()) {
+          html += `<tr class="transit-note">
+            <td colspan="6">🚄 ${esc(day.transitNote)}</td>
+          </tr>`;
+        }
+
+        // 景点列
+        let spotsHtml = '';
+        if (day.arrivalInfo && day.arrivalInfo.trim()) {
+          spotsHtml += `<div style="margin-bottom:6px;">${esc(day.arrivalInfo)}</div>`;
+        }
+        (day.attractions || []).forEach((a, i) => {
+          if (zh) {
+            spotsHtml += `${i + 1}. ${esc(a.name)} (${esc(a.nameEn || '')}) <span class="mark">${esc(a.time || '')}</span><br>`;
+          } else {
+            spotsHtml += `${i + 1}. ${esc(a.nameEn || a.name)} <span class="mark">${esc(a.time || '')}</span><br>`;
+          }
+        });
+        if (day.departureInfo && day.departureInfo.trim()) {
+          spotsHtml += `<div style="margin-top:6px;">${esc(day.departureInfo)}</div>`;
+        }
+
+        // 交通列
+        let transportStr = '';
+        if (day.transport && Array.isArray(day.transport)) {
+          transportStr = day.transport.map(t => {
+            if (zh) return t;
+            return transportZhEn[t] || t;
+          }).join(', ');
+        }
+
+        html += `<tr>
+          <td class="col-seq">${day.day || idx + 1}</td>
+          <td class="col-date">${esc(day.date || '')}</td>
+          <td class="col-city"><strong>${esc(day.city || '')}</strong></td>
+          <td class="col-spot">${spotsHtml}</td>
+          <td class="col-acc"><strong>${esc(day.hotel || '')}</strong></td>
+          <td class="col-trans">${transportStr}</td>
+        </tr>`;
+      });
+
+      html += `</tbody></table>`;
+      html += `<div class="paper-footer">${zh ? 'AI 生成 · 仅供参考 · 请核对后递签' : 'AI generated · for reference only'}</div>`;
+      paper.innerHTML = html;
+    }
+
+    function toggleLanguage() {
+      if (!itineraryResult) { showToast('请先生成行程'); return; }
+      currentLanguage = currentLanguage === 'zh' ? 'en' : 'zh';
+      updateLangButtons();
+      renderItinerary(itineraryResult, currentLanguage);
+    }
+
+    function updateLangButtons() {
+      const text = currentLanguage === 'zh' ? '🌐 转换为英文版' : '🌐 转换为中文版';
+      const btn1 = document.getElementById('langToggleBtn');
+      const btn2 = document.getElementById('langToggleBtn2');
+      if (btn1) btn1.textContent = text;
+      if (btn2) btn2.textContent = text;
+    }
+
+    function saveToLocal() {
+      try { localStorage.setItem('ai_itinerary_bilingual', JSON.stringify(itineraryResult)); } catch(e) {}
+    }
+
+    function loadFromLocal() {
+      try {
+        const saved = localStorage.getItem('ai_itinerary_bilingual');
+        if (saved) {
+          itineraryResult = JSON.parse(saved);
+          renderItinerary(itineraryResult, 'zh');
+          currentLanguage = 'zh';
+          updateLangButtons();
+        }
+      } catch(e) {}
+    }
+
+    function exportPDF() {
+      alert('请使用浏览器打印功能 (Ctrl+P 或分享→打印)，选择“另存为PDF”，边距设为最小。');
+      window.print();
+    }
+
+    function exportWord() {
+      if (!itineraryResult) { showToast('请先生成行程'); return; }
+      const paperHTML = document.getElementById('itineraryPaper').outerHTML;
+      const full = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>签证行程单</title><style>body{font-family:sans-serif;max-width:950px;margin:0 auto;padding:20px;} table{border-collapse:collapse;width:100%;border:1px solid #000;} th,td{border:1px solid #333;padding:8px;vertical-align:top;} th{background:#f5f5f5;} .mark{background:#fff3cd;padding:2px 6px;}</style></head><body>${paperHTML}</body></html>`;
+      const blob = new Blob([full], { type: 'application/msword' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = '签证行程单.doc';
+      a.click();
+      showToast('📝 Word文档已下载');
+    }
+
+    function resetAll() {
+      document.getElementById('countrySelect').value = '意大利';
+      document.getElementById('startDate').value = '2026-04-24';
+      document.getElementById('endDate').value = '2026-05-02';
+      document.getElementById('hotels').value = 'Hotel Nazionale, Hotel Brunelleschi';
+      document.getElementById('transportPref').value = '火车、地铁、步行';
+      document.getElementById('extraNotes').value = '包含五渔村、比萨斜塔，张弛有度';
+      itineraryResult = null;
+      currentLanguage = 'zh';
+      updateLangButtons();
+      document.getElementById('itineraryPaper').innerHTML = `<div style="text-align:center;padding:60px;"><div style="font-size:3rem;">📋</div><p>填写左侧信息后，点击“AI生成行程”</p></div>`;
+      showToast('🔄 已重置');
+    }
+
+    function showToast(msg) {
+      const t = document.createElement('div');
+      t.textContent = msg;
+      t.style.position = 'fixed';
+      t.style.bottom = '24px';
+      t.style.left = '50%';
+      t.style.transform = 'translateX(-50%)';
+      t.style.background = '#1a202c';
+      t.style.color = 'white';
+      t.style.padding = '10px 24px';
+      t.style.borderRadius = '30px';
+      t.style.zIndex = '1000';
+      t.style.fontSize = '0.85rem';
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2500);
+    }
+
+    window.generateItinerary = generateItinerary;
+    window.toggleLanguage = toggleLanguage;
+    window.exportPDF = exportPDF;
+    window.exportWord = exportWord;
+    window.resetAll = resetAll;
+
+    loadFromLocal();
+  })();
+  </script>
+</body>
+</html>
