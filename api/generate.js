@@ -1,6 +1,6 @@
 // api/generate.js
 export default async function handler(req, res) {
-  // *** 处理 CORS 预检请求 ***
+  // CORS 头
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -8,25 +8,23 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
-  // *************************
 
-  // 1. 只接受 POST 请求
   if (req.method !== 'POST') {
     return res.status(405).json({ error: '只接受 POST 请求' });
   }
 
-  // 2. 获取请求体
-  const body = req.body;
-
-  // 3. 检查环境变量
+  // 1. 检查环境变量
   const apiKey = process.env.ZHIPU_API_KEY;
   if (!apiKey) {
-    console.error('❌ ZHIPU_API_KEY 环境变量未设置');
-    return res.status(500).json({ error: '服务器配置错误：未设置 ZHIPU_API_KEY' });
+    console.error('❌ ZHIPU_API_KEY 未设置');
+    return res.status(500).json({ error: '服务器配置错误：ZHIPU_API_KEY 未设置，请在 Vercel 环境变量中添加' });
   }
 
   try {
-    const response = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
+    const body = req.body;
+
+    // 2. 调用智谱 API
+    const aiResponse = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -62,7 +60,7 @@ export default async function handler(req, res) {
 - 交通偏好：${body.transportPref}
 - 额外要求：${body.extraNotes || '无'}
 
-⚠️ 重要：只返回JSON，不要包含任何解释文字。JSON格式如下：
+只返回JSON，不要任何解释文字。JSON格式如下：
 {
   "days": [
     {
@@ -87,25 +85,32 @@ export default async function handler(req, res) {
       })
     });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error('智谱 API 返回错误:', response.status, data);
-      return res.status(response.status).json({ error: data.error?.message || '智谱 API 调用失败' });
+    // 3. 检查智谱 API 响应状态
+    if (!aiResponse.ok) {
+      const errorText = await aiResponse.text();
+      console.error('智谱 API 返回错误:', aiResponse.status, errorText);
+      return res.status(502).json({ error: `智谱 API 返回错误 (${aiResponse.status}): ${errorText}` });
     }
 
+    const data = await aiResponse.json();
+
     if (!data.choices || !data.choices[0]) {
-      throw new Error('智谱 API 返回异常：' + JSON.stringify(data));
+      return res.status(502).json({ error: '智谱 API 返回数据异常：' + JSON.stringify(data) });
     }
 
     let content = data.choices[0].message.content;
     content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-    const json = JSON.parse(content);
-    
-    return res.status(200).json(json);
 
+    let json;
+    try {
+      json = JSON.parse(content);
+    } catch (parseError) {
+      return res.status(502).json({ error: 'AI 返回的内容无法解析为 JSON：' + content });
+    }
+
+    return res.status(200).json(json);
   } catch (error) {
-    console.error('生成失败：', error);
-    return res.status(500).json({ error: error.message });
+    console.error('函数执行异常:', error);
+    return res.status(500).json({ error: '服务器内部错误: ' + error.message });
   }
 }
