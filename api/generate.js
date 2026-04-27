@@ -1,5 +1,15 @@
 // api/generate.js
 export default async function handler(req, res) {
+  // *** 处理 CORS 预检请求 ***
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  // *************************
+
   // 1. 只接受 POST 请求
   if (req.method !== 'POST') {
     return res.status(405).json({ error: '只接受 POST 请求' });
@@ -8,10 +18,7 @@ export default async function handler(req, res) {
   // 2. 获取请求体
   const body = req.body;
 
-  // 3. 调试：查看环境变量是否传入（部署后可在 Vercel Logs 中查看）
-  console.log('ZHIPU_API_KEY exists:', !!process.env.ZHIPU_API_KEY);
-  console.log('ZHIPU_API_KEY first 10 chars:', process.env.ZHIPU_API_KEY ? process.env.ZHIPU_API_KEY.substring(0, 10) + '...' : 'NOT SET');
-
+  // 3. 检查环境变量
   const apiKey = process.env.ZHIPU_API_KEY;
   if (!apiKey) {
     console.error('❌ ZHIPU_API_KEY 环境变量未设置');
@@ -19,7 +26,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 4. 调用智谱 AI API（使用官方推荐的模型 glm-4-flash）
     const response = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
       method: 'POST',
       headers: {
@@ -27,7 +33,7 @@ export default async function handler(req, res) {
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'glm-4-flash',  // 使用免费模型
+        model: 'glm-4-flash',
         messages: [
           {
             role: 'system',
@@ -68,7 +74,7 @@ export default async function handler(req, res) {
       ],
       "hotel": "Hotel Roma",
       "transport": ["火车", "步行"],
-      "arrivalInfo": "【入境抵达】乘坐CA939航班...",
+      "arrivalInfo": "【入境抵达】...",
       "departureInfo": "",
       "transitNote": ""
     }
@@ -83,14 +89,9 @@ export default async function handler(req, res) {
 
     const data = await response.json();
 
-    // 5. 检查 API 响应状态
     if (!response.ok) {
       console.error('智谱 API 返回错误:', response.status, data);
-      // 专门处理 401 错误
-      if (response.status === 401) {
-        return res.status(401).json({ error: '智谱 API Key 无效或已过期，请在 Vercel 环境变量中重新设置 ZHIPU_API_KEY' });
-      }
-      throw new Error(`智谱 API 返回错误 (${response.status}): ${JSON.stringify(data)}`);
+      return res.status(response.status).json({ error: data.error?.message || '智谱 API 调用失败' });
     }
 
     if (!data.choices || !data.choices[0]) {
@@ -98,7 +99,6 @@ export default async function handler(req, res) {
     }
 
     let content = data.choices[0].message.content;
-    // 去除可能的 markdown 代码块符号
     content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
     const json = JSON.parse(content);
     
