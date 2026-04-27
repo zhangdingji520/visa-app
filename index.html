@@ -92,27 +92,28 @@
     .flex-row { display: flex; gap: 8px; }
     .flex-row > * { flex: 1; }
 
-    /* 国家选择网格 */
+    /* 国家选择网格 — 三列 */
     .country-grid {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 6px;
     }
     @media (max-width:400px) {
-      .country-grid { grid-template-columns: 1fr; }
+      .country-grid { grid-template-columns: repeat(2, 1fr); }
     }
     .country-item {
       display: flex;
       align-items: center;
       gap: 6px;
-      padding: 8px 10px;
+      padding: 8px 6px;
       border: 1px solid var(--borderStrong);
       border-radius: 8px;
-      font-size: 0.82rem;
+      font-size: 0.78rem;
       background: #fff;
       cursor: pointer;
       transition: all 0.15s;
       user-select: none;
+      white-space: nowrap;
     }
     .country-item:hover {
       border-color: var(--accent);
@@ -208,7 +209,7 @@
     <div class="input-area no-print">
       <h3>🧳 行程信息</h3>
       <div class="form-row">
-        <label>🌍 旅行国家（点击方框选中）</label>
+        <label>🌍 旅行国家（可多选，一行三个）</label>
         <div class="country-grid" id="countryList"></div>
       </div>
       <div class="form-row">
@@ -272,11 +273,11 @@
     // 后端 API 地址
     const API_URL = 'https://visa-app-five.vercel.app/api/generate';
 
-    // 申根国家列表
+    // 申根国家列表（已去除列支敦士登）
     const schengenCountries = [
       '奥地利', '比利时', '捷克', '丹麦', '爱沙尼亚', '芬兰',
       '法国', '德国', '希腊', '匈牙利', '冰岛', '意大利',
-      '拉脱维亚', '列支敦士登', '立陶宛', '卢森堡', '马耳他',
+      '拉脱维亚', '立陶宛', '卢森堡', '马耳他',
       '荷兰', '挪威', '波兰', '葡萄牙', '斯洛伐克', '斯洛文尼亚',
       '西班牙', '瑞典', '瑞士', '克罗地亚'
     ];
@@ -297,7 +298,7 @@
       const d = document.createElement('div'); d.textContent = s; return d.innerHTML;
     }
 
-    // 初始化国家选择列表
+    // 构建国家多选列表
     function buildCountryList() {
       const container = document.getElementById('countryList');
       container.innerHTML = '';
@@ -307,9 +308,8 @@
         div.dataset.country = country;
         div.innerHTML = `<span class="check-box"></span>${country}`;
         div.addEventListener('click', () => {
-          // 单选逻辑：移除所有active，为当前项添加active
-          document.querySelectorAll('.country-item').forEach(el => el.classList.remove('active'));
-          div.classList.add('active');
+          // 多选切换
+          div.classList.toggle('active');
         });
         container.appendChild(div);
       });
@@ -318,17 +318,17 @@
       if (italyItem) italyItem.classList.add('active');
     }
 
-    // 获取当前选中的国家
-    function getSelectedCountry() {
-      const active = document.querySelector('.country-item.active');
-      return active ? active.dataset.country : null;
+    // 获取已选中的国家列表
+    function getSelectedCountries() {
+      const actives = document.querySelectorAll('.country-item.active');
+      return Array.from(actives).map(el => el.dataset.country);
     }
 
     // 生成行程
     async function generateItinerary() {
-      const selectedCountry = getSelectedCountry();
-      if (!selectedCountry) {
-        showToast('❌ 请先选择一个国家');
+      const selectedCountries = getSelectedCountries();
+      if (selectedCountries.length === 0) {
+        showToast('❌ 请至少选择一个国家');
         return;
       }
 
@@ -338,7 +338,7 @@
 
       try {
         const params = {
-          country: selectedCountry,
+          country: selectedCountries.join('、'),  // 多个国家用顿号分隔
           startDate: document.getElementById('startDate').value,
           endDate: document.getElementById('endDate').value,
           hotels: document.getElementById('hotels').value,
@@ -468,7 +468,7 @@
     }
 
     function exportPDF() {
-      alert('请使用浏览器打印功能，选择"另存为PDF"，边距设为最小。');
+      alert('请使用浏览器打印功能，选择“另存为PDF”，边距设为最小。');
       window.print();
     }
 
@@ -490,7 +490,7 @@
       itineraryResult = null;
       currentLanguage = 'zh';
       updateLangButtons();
-      // 重置国家选择：选中意大利
+      // 重置国家选择：取消所有，只选中意大利
       document.querySelectorAll('.country-item').forEach(el => el.classList.remove('active'));
       const italy = document.querySelector('.country-item[data-country="意大利"]');
       if (italy) italy.classList.add('active');
