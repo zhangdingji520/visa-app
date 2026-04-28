@@ -11,11 +11,11 @@ export default async function handler(req, res) {
 
   try {
     const body = req.body;
-    // 接收自然语言消息
     const userMessage = body.message || '';
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 40000);
+    // 超时改为 120 秒（2分钟）
+    const timeoutId = setTimeout(() => controller.abort(), 120000);
 
     const aiResponse = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
       method: 'POST',
@@ -53,7 +53,7 @@ JSON 格式如下：
       ],
       "hotel": "Hotel Roma",
       "transport": ["火车", "步行"],
-      "arrivalInfo": "【入境抵达】乘坐某航班从某地起飞，抵达某机场，前往酒店办理入住",
+      "arrivalInfo": "【入境抵达】...",
       "departureInfo": "",
       "transitNote": ""
     }
@@ -66,7 +66,7 @@ JSON 格式如下：
           }
         ],
         temperature: 0.7,
-        max_tokens: 4000
+        max_tokens: 3000   // 适当限制长度，加快响应
       }),
       signal: controller.signal
     });
@@ -90,7 +90,7 @@ JSON 格式如下：
 
   } catch (error) {
     if (error.name === 'AbortError') {
-      return res.status(504).json({ error: 'AI 响应超时（40秒），请稍后重试' });
+      return res.status(504).json({ error: 'AI 响应超时（120秒），请尝试减少国家数量或简化描述' });
     }
     return res.status(500).json({ error: error.message });
   }
